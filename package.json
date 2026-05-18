@@ -1,0 +1,12 @@
+{
+  "name": "rift-runner",
+  "version": "0.0.1",
+  "description": "Survivors-like / bullet heaven game",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes http-server -p 8080 -c-1 -o"
+  },
+  "author": "Kollin",
+  "license": "UNLICENSED"
+}
