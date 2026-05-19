@@ -2,6 +2,7 @@
 
 import { CONFIG } from './config.js';
 import { Pool, enemyHash, TAU } from './utils.js';
+import { spawnGem } from './gems.js';
 
 const Z = CONFIG.enemyTypes.zombie;
 
@@ -105,7 +106,11 @@ export function damageEnemy(e, dmg) {
   e.hitFlash = 0.08;
   if (e.hp <= 0) {
     e.alive = false;
-    // M2 hook: drop XP gem here based on e.type and Z.xpDropChance
+    // Drop XP gem. Zombies only drop blue in M2; tougher enemy types will roll green/red in M3+.
+    const dropCfg = CONFIG.enemyTypes[e.type];
+    if (dropCfg && Math.random() < dropCfg.xpDropChance) {
+      spawnGem(e.x, e.y, 'blue');
+    }
     return true; // killed
   }
   return false;

@@ -51,23 +51,77 @@ export const CONFIG = {
     },
   },
 
-  // ---- Weapons (milestone 1: pistol only) ----
+  // ---- Weapons ----
+  // Per-level deltas are flat additions on top of base. levelN = base + perLevel*(N-1).
   weapons: {
     pistol: {
-      damage: 10,
-      cooldownSec: 0.5,
-      projectileSpeed: 600,
-      projectileRadius: 4,
-      projectileLifetimeSec: 1.2,
-      range: 600,           // don't fire if no enemy within this radius
-      color: '#ffd76b',
+      maxLevel: 8,
+      base: {
+        damage: 10,
+        cooldownSec: 0.5,
+        projectileSpeed: 600,
+        projectileRadius: 4,
+        projectileLifetimeSec: 1.2,
+        range: 600,
+        color: '#ffd76b',
+      },
+      perLevel: { damage: 4, cooldownSec: -0.04 },
     },
+    orbitBlade: {
+      maxLevel: 8,
+      base: {
+        bladeCount: 1,
+        orbitRadius: 80,       // px from player
+        rotateSpeed: Math.PI * 2,  // rad/sec (1 rotation per sec)
+        bladeRadius: 14,
+        damage: 8,
+        hitCooldownSec: 0.4,   // per-enemy cooldown to avoid 60-hits-per-second insta-kills
+        color: '#b8e0ff',
+      },
+      perLevel: { damage: 3 },
+      // Adding a blade every other level keeps the spinner readable.
+      bladeAtLevel: [1, 1, 2, 2, 3, 3, 3, 3],
+    },
+    shockwave: {
+      maxLevel: 8,
+      base: {
+        radius: 100,
+        damage: 18,
+        intervalSec: 3.0,
+        color: '#7be0c8',
+      },
+      perLevel: { radius: 12, damage: 4, intervalSec: -0.12 },
+    },
+  },
+
+  // ---- Passives (apply via stat modifier layer in passives.js) ----
+  passives: {
+    magnet:    { maxLevel: 5, name: 'Magnet',     desc: '+50% pickup radius',  stat: 'pickupRadius', mult: 0.50 },
+    powerCell: { maxLevel: 5, name: 'Power Cell', desc: '+15% weapon damage',  stat: 'weaponDamage', mult: 0.15 },
+    boots:     { maxLevel: 5, name: 'Boots',      desc: '+10% move speed',     stat: 'moveSpeed',    mult: 0.10 },
+  },
+
+  // ---- Leveling ----
+  leveling: {
+    maxOwnedWeapons: 6,
+    maxOwnedPassives: 6,
+    cardsPerLevel: 3,
+    freeRerollsPerLevel: 1,
+    startingWeapon: 'pistol',
   },
 
   // ---- Pools (preallocated sizes) ----
   pools: {
     enemies: 800,
     projectiles: 400,
+    gems: 1500,             // many gems can pile up before pickup-radius catches up
+  },
+
+  // ---- Gems ----
+  gems: {
+    radius: 5,
+    magnetEase: 8,         // higher = snappier fly-to-player (exp lerp factor)
+    magnetMinSpeed: 250,   // floor speed once magneted, px/s
   },
 
   // ---- Run length ----

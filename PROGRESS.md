@@ -18,7 +18,13 @@ Update this at the end of every Claude Code session. Newest entries at the top.
   - `weapons.js`: projectile pool, pistol auto-fires at nearest enemy in range, single-target collision via spatial hash
   - `main.js`: contact damage with 0.5s i-frames, HP bar + timer + kill HUD, game-over + R-to-retry, debug overlay extended (enemy/projectile counts, pistol cooldown)
   - Decisions logged: lock-target-at-fire-time, no separation in zombie AI, conservative starter numbers (pistol 10dmg/0.5s, zombie 20hp/80spd/5dmg)
-- [ ] Milestone 2 — XP + level up + 3 weapons + 3 passives
+- [x] **Milestone 2 — XP + level up + 3 weapons + 3 passives** (2026-05-18)
+  - `gems.js`: pooled XP gems (cap 1500), drop on enemy death, magnet eased fly-to-player once inside pickup radius
+  - `passives.js`: `{mult,flat}` stat table, `deriveStats(owned)` re-derives on level-up
+  - `weapons.js`: added Orbit Blade (anchored rotating blades, per-enemy hit cooldown) + Shockwave (periodic AoE pulse), `weaponStat(id,key,level)` level-scaling helper, expanding ring visual for shockwave
+  - `upgrades.js`: eligible card pool, 3-card random draw, max-owned filter, reroll-aware
+  - `main.js`: XP bar (bottom, full-width), level-up screen (3 cards, click or 1/2/3, Q to reroll), weapon icons HUD, ownership state, statTable wired into player moveSpeed/pickupRadius/weaponDamage
+  - Decisions logged: card pool uniform-weighted; 1 free reroll per level; conservative starter numbers (Orbit Blade 8dmg/1blade@L1; Shockwave 18dmg/100r/3s; Magnet/PowerCell/Boots 5 levels each)
 - [ ] Milestone 3 — 6 weapons, 8 passives, evolutions, 4 enemy types
 - [ ] Milestone 4 — Bosses + elites + scaling (MVP complete)
 - [ ] Milestone 5 — Meta-progression + main menu + 5 heroes
@@ -28,6 +34,12 @@ Update this at the end of every Claude Code session. Newest entries at the top.
 ---
 
 ## Session log
+
+### 2026-05-18 — Milestone 2 complete
+- Added `gems.js`, `passives.js`, `upgrades.js`; extended `config.js`, `weapons.js`, `enemies.js`, `main.js`
+- Full level-up loop works: kill → gem → magnet pickup → XP bar fills → freeze + 3-card screen → pick → resume
+- Stat layer is the foundation for M3 evolutions (just chain "weapon X at L5 + passive Y owned → swap to evolved id")
+- **Next session:** Milestone 3 — 6 weapons, 8 passives, evolutions, 4 enemy types
 
 ### 2026-05-18 — Milestone 1 complete
 - Added `utils.js`, `enemies.js`, `weapons.js`; extended `config.js` and `main.js`
