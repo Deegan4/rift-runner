@@ -13,6 +13,10 @@ import {
   projectilePool, minionPool,
 } from './weapons.js';
 import { gemPool, updateGems, drawGems } from './gems.js';
+import {
+  particlePool, numberPool, updateEffects, drawParticles, drawDamageNumbers,
+  shakeAdd, getShakeOffset, resetShake, spawnBurst,
+} from './effects.js';
 import { deriveStats } from './passives.js';
 import { drawCards, applyCard } from './upgrades.js';
 import {
@@ -54,6 +58,7 @@ const state = {
   paused: false, pendingCards: null, rerollsLeft: 0,
   cardRects: [],
   ownedWeapons: {}, ownedPassives: {}, statTable: null,
+  deathT: 0,        // seconds since death (drives death fade animation)
 };
 
 const xpToNext = () => Math.floor(CONFIG.xp.baseXpToLevel * Math.pow(CONFIG.xp.curveExponent, state.level - 1));
@@ -89,6 +94,11 @@ function pickCard(ix) {
   rebuildStats();
   state.pendingCards = null;
   state.pendingLevelUps--;
+  // Celebratory burst at the player on every pick, bigger for evolutions
+  const isEvo = card.kind === 'evolution';
+  spawnBurst(state.player.x, state.player.y, isEvo ? 60 : 25, isEvo ? '#ffd76b' : '#a0e8ff',
+             80, 300, 0.35, 0.7, 2.5);
+  shakeAdd(isEvo ? 10 : 4, isEvo ? 0.3 : 0.15);
   if (state.pendingLevelUps > 0) openLevelUpScreen();
   else state.paused = false;
 }
@@ -141,6 +151,12 @@ function startRun() {
   enemyProjectilePool.active.length = 0;
   for (const g of gemPool.slots) g.alive = false;
   gemPool.active.length = 0;
+  for (const p of particlePool.slots) p.alive = false;
+  particlePool.active.length = 0;
+  for (const n of numberPool.slots) n.alive = false;
+  numberPool.active.length = 0;
+  resetShake();
+  state.deathT = 0;
   resetWeapons();
   resetElapsedTime();
 }
@@ -240,6 +256,8 @@ function update(dt) {
   for (let i = 0; i < enemyPool.active.length; i++) if (!enemyPool.active[i].alive) killsThisFrame++;
   state.kills += killsThisFrame;
 
+  updateEffects(dt);
+
   enemyPool.compact();
   projectilePool.compact();
   enemyProjectilePool.compact();
@@ -250,33 +268,81 @@ function update(dt) {
 function takeDamage(amount) {
   state.player.hp -= amount;
   state.player.iframes = CONFIG.player.iframesSec;
-  if (state.player.hp <= 0) { state.player.hp = 0; state.player.dead = true; }
+  shakeAdd(Math.min(14, 4 + amount * 0.6), 0.22);
+  if (state.player.hp <= 0) {
+    state.player.hp = 0;
+    state.player.dead = true;
+    state.deathT = 0; // for death fade animation
+    shakeAdd(20, 0.4);
+    spawnBurst(state.player.x, state.player.y, 60, '#ff4444', 100, 380, 0.4, 0.9, 3);
+  }
 }
 
 // ---- Render ----
+// Render camera = gameplay camera + shake offset. Computed each frame so gameplay coords stay clean.
+const renderCamera = { x: 0, y: 0 };
+
 function render() {
-  ctx.fillStyle = '#1a3d1a';
-  ctx.fillRect(0, 0, viewW, viewH);
+  const shake = getShakeOffset();
+  renderCamera.x = state.camera.x + shake.x;
+  renderCamera.y = state.camera.y + shake.y;
 
-  ctx.strokeStyle = '#444';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(-state.camera.x, -state.camera.y, CONFIG.arena.width, CONFIG.arena.height);
+  drawBackground();
 
-  drawGems(ctx, state.camera);
-  drawEnemies(ctx, state.camera);
-  drawEnemyProjectiles(ctx, state.camera);
-  drawWeapons(ctx, state.camera, state.ownedWeapons);
+  drawGems(ctx, renderCamera);
+  drawEnemies(ctx, renderCamera);
+  drawEnemyProjectiles(ctx, renderCamera);
+  drawWeapons(ctx, renderCamera, state.ownedWeapons);
+  drawParticles(ctx, renderCamera);
+  drawPlayer(renderCamera);
+  drawDamageNumbers(ctx, renderCamera);
 
-  drawPlayer();
+  drawVignette();
   drawHud();
   drawJoystick();
   if (state.pendingCards) drawLevelUpScreen();
   if (state.player.dead) drawGameOver();
 }
 
-function drawPlayer() {
-  const px = state.player.x - state.camera.x;
-  const py = state.player.y - state.camera.y;
+function drawBackground() {
+  // Dark base
+  ctx.fillStyle = '#101810';
+  ctx.fillRect(0, 0, viewW, viewH);
+
+  // Subtle grid that scrolls with the camera — turns the arena into a battlefield
+  const CELL = 60;
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  const offX = -((renderCamera.x % CELL + CELL) % CELL);
+  const offY = -((renderCamera.y % CELL + CELL) % CELL);
+  ctx.beginPath();
+  for (let x = offX; x <= viewW; x += CELL) {
+    ctx.moveTo(x, 0); ctx.lineTo(x, viewH);
+  }
+  for (let y = offY; y <= viewH; y += CELL) {
+    ctx.moveTo(0, y); ctx.lineTo(viewW, y);
+  }
+  ctx.stroke();
+
+  // Arena bounds (slightly brighter — the world edge)
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-renderCamera.x, -renderCamera.y, CONFIG.arena.width, CONFIG.arena.height);
+}
+
+function drawVignette() {
+  // Radial darkening at edges — focuses attention without obscuring gameplay
+  const g = ctx.createRadialGradient(viewW / 2, viewH / 2, Math.min(viewW, viewH) * 0.35,
+                                      viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.75);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, viewW, viewH);
+}
+
+function drawPlayer(cam = state.camera) {
+  const px = state.player.x - cam.x;
+  const py = state.player.y - cam.y;
   const r = state.player.radius;
 
   // I-frame flicker: skip drawing on alternating short windows for a strobe effect
@@ -534,21 +600,39 @@ function wrapText(text, cx, cy, maxW, lineH, align = 'center') {
 }
 
 function drawGameOver() {
-  ctx.fillStyle = '#000a';
+  // Phase 1 (0..0.6s): red fade in from center, like blood
+  // Phase 2 (0.6s+): dark overlay + text
+  const t = state.deathT;
+  if (t < 0.6) {
+    const k = t / 0.6;
+    const g = ctx.createRadialGradient(viewW / 2, viewH / 2, 0,
+                                        viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.8);
+    g.addColorStop(0, `rgba(180, 30, 30, ${k * 0.7})`);
+    g.addColorStop(1, `rgba(0, 0, 0, ${k * 0.85})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, viewW, viewH);
+    return;
+  }
+  // Dark base
+  ctx.fillStyle = 'rgba(20, 5, 5, 0.85)';
   ctx.fillRect(0, 0, viewW, viewH);
-  ctx.fillStyle = '#fff';
-  const size = Math.max(28, Math.min(56, viewW * 0.06));
-  ctx.font = `${size}px ui-sans-serif, system-ui`;
+  // Title fade-in over second 0.6..1.0
+  const textFade = Math.min(1, (t - 0.6) / 0.4);
+  ctx.globalAlpha = textFade;
+  ctx.fillStyle = '#ff6464';
+  const size = Math.max(32, Math.min(64, viewW * 0.07));
+  ctx.font = `bold ${size}px ui-sans-serif, system-ui`;
   ctx.textAlign = 'center';
   ctx.fillText('YOU DIED', viewW / 2, viewH / 2 - 10);
   ctx.font = '16px ui-sans-serif, system-ui';
-  ctx.fillStyle = '#fffa';
-  const t = getElapsedTime();
-  const mm = String(Math.floor(t / 60)).padStart(2, '0');
-  const ss = String(Math.floor(t % 60)).padStart(2, '0');
+  ctx.fillStyle = '#ffffffaa';
+  const elapsed = getElapsedTime();
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
   ctx.fillText(`Survived ${mm}:${ss}  ·  Lv ${state.level}  ·  ${state.kills} kills`,
     viewW / 2, viewH / 2 + 24);
   ctx.fillText('tap or press R to retry', viewW / 2, viewH / 2 + 48);
+  ctx.globalAlpha = 1;
 }
 
 function updateDebug() {
@@ -581,6 +665,11 @@ function loop(now) {
     state.frameCount = 0; state.fpsTimer = 0;
   }
   update(dt);
+  // Death timer advances even while update() early-returns on dead — so the fade animates
+  if (state.player.dead) {
+    state.deathT += dt;
+    updateEffects(dt); // particles + shake still need to tick post-death
+  }
   render();
   updateDebug();
   requestAnimationFrame(loop);

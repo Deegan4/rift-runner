@@ -203,6 +203,12 @@ export const CONFIG = {
     beams: 8,                 // beam visual ribbons
   },
 
+  // ---- Visual effects (pure render, no gameplay impact) ----
+  effects: {
+    particles: 600,           // particle pool — generous; dust burst on enemy death is ~25 particles
+    damageNumbers: 150,       // floating damage text pool
+  },
+
   // ---- Gems ----
   gems: {
     radius: 5,

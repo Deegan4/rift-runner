@@ -5,6 +5,7 @@
 import { CONFIG } from './config.js';
 import { Pool, enemyHash, dist2, TAU, drawSphere, drawGlowDot } from './utils.js';
 import { damageEnemy } from './enemies.js';
+import { spawnBurst, shakeAdd } from './effects.js';
 
 // ---- Level-scaled stat helper. value = base[key] + perLevel[key] * (level - 1). ----
 export function weaponStat(weaponId, key, level) {
@@ -308,7 +309,6 @@ function detonateGrenade(p, st) {
 }
 
 function spawnExplosion(x, y, radius, damage, color) {
-  // Apply damage immediately to enemies inside the radius, then queue a visual.
   const candidates = [];
   enemyHash.queryCircle(x, y, radius, candidates);
   for (let i = 0; i < candidates.length; i++) {
@@ -320,6 +320,10 @@ function spawnExplosion(x, y, radius, damage, color) {
     ex.x = x; ex.y = y; ex.radius = radius; ex.damage = damage; ex.color = color;
     ex.t = 0; ex.dur = 0.35;
   });
+  // Juice: particle burst + screen shake scaled to radius
+  const burst = Math.min(50, Math.round(radius * 0.3));
+  spawnBurst(x, y, burst, color, 120, 360, 0.35, 0.7, 2.5);
+  shakeAdd(Math.min(10, radius / 18), 0.18);
 }
 
 // ---- Beam & Death Ray ----

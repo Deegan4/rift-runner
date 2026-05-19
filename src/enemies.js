@@ -3,6 +3,7 @@
 import { CONFIG } from './config.js';
 import { Pool, enemyHash, TAU, dist2, drawSphere, drawGlowDot } from './utils.js';
 import { spawnGem } from './gems.js';
+import { spawnBurst, spawnHitSpark, spawnDamageNumber } from './effects.js';
 
 // ---- Pools ----
 function makeEnemy() {
@@ -200,12 +201,18 @@ export function damageEnemy(e, dmg) {
   if (!e.alive) return false;
   e.hp -= dmg;
   e.hitFlash = 0.08;
+  // Damage number + small hit spark on every hit
+  spawnDamageNumber(e.x, e.y - e.radius - 4, dmg, '#ffe680');
+  spawnHitSpark(e.x, e.y, '#ffffff', 3);
   if (e.hp <= 0) {
     e.alive = false;
     const dropCfg = CONFIG.enemyTypes[e.type];
     if (dropCfg && Math.random() < dropCfg.xpDropChance) {
       spawnGem(e.x, e.y, e.gemTier);
     }
+    // Death burst — scale particle count + colors by type for visual differentiation
+    const burst = e.type === 'tank' ? 36 : e.type === 'shooter' ? 22 : 18;
+    spawnBurst(e.x, e.y, burst, e.color, 80, 280, 0.3, 0.65, 2);
     return true;
   }
   return false;
