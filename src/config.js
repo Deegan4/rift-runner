@@ -17,6 +17,7 @@ export const CONFIG = {
     critChance: 0.05,
     critMult: 1.5,
     radius: 12,            // collision radius
+    iframesSec: 0.5,       // invulnerability after taking contact damage
   },
 
   // ---- XP / leveling ----
@@ -34,6 +35,39 @@ export const CONFIG = {
     hpScalePerMin: 0.25,      // enemy hp *= (1 + scale * minutesElapsed)
     eliteIntervalSec: 60,
     bossSpawnMinutes: [5, 10, 15, 20],
+    spawnOffscreenMargin: 80, // spawn this far outside the camera viewport
+    maxAlive: 600,            // safety cap; spawner skips when reached
+  },
+
+  // ---- Enemy types (milestone 1: zombie only) ----
+  enemyTypes: {
+    zombie: {
+      hp: 20,
+      moveSpeed: 80,        // px/sec
+      radius: 12,
+      contactDamage: 5,
+      color: '#7da046',
+      xpDropChance: 1.0,    // probability to drop an XP gem on death (gems land in M2)
+    },
+  },
+
+  // ---- Weapons (milestone 1: pistol only) ----
+  weapons: {
+    pistol: {
+      damage: 10,
+      cooldownSec: 0.5,
+      projectileSpeed: 600,
+      projectileRadius: 4,
+      projectileLifetimeSec: 1.2,
+      range: 600,           // don't fire if no enemy within this radius
+      color: '#ffd76b',
+    },
+  },
+
+  // ---- Pools (preallocated sizes) ----
+  pools: {
+    enemies: 800,
+    projectiles: 400,
   },
 
   // ---- Run length ----
@@ -50,6 +84,6 @@ export const CONFIG = {
   // ---- Debug ----
   debug: {
     toggleKey: '`',          // tilde
-    startVisible: false,
+    startVisible: true,      // helpful during milestone 1 — flip back to false later
   },
 };
