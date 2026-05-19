@@ -37,7 +37,16 @@ Update this at the end of every Claude Code session. Newest entries at the top.
   - `upgrades.js`: evolution eligibility detection, evolution cards force-included in draw pool, distinct gold styling
   - `main.js`: HP regen tick (Vitality), max-HP scaling with proportional heal on pickup, enemy-projectile player damage path, evolution badge in HUD
   - Verified: 0 syntax errors across 9 modules, 0 console errors in headless preview
-- [ ] Milestone 4 — Bosses + elites + scaling (MVP complete)
+- [x] **Milestone 4 — Bosses + elites + scaling (MVP complete)** (2026-05-18)
+  - **Elites** spawn every 60s (PRD §5.4): existing enemy type tagged with `isElite`, 4× HP / 1.5× damage / 1.35× radius / 0.85× speed, pulsing gold glow halo, drop 3 green gems + chest
+  - **Boss "Rift Warden"** spawns at minutes 5/10/15/20 (PRD §13.5): 3-phase state machine keyed off HP fraction — phase 1 (100→60%) base, phase 2 (60→30%) faster + spawns minions every 4s, phase 3 (30→0%) enraged + huge burst spread. HP scales per wave (+60% per subsequent boss). Drops 8 red gems + chest.
+  - **Chests** (PRD §5.4 elite chest drop): new `chests.js` module with pool, pulsing glow render, pickup → immediate level-up via `pendingLevelUps++`
+  - **Boss intro**: 2.5s "BOSS INCOMING" warning banner with pulsing red overlay before spawn
+  - **Boss HP bar**: dedicated full-width bar at top of screen, color-shifts with phase
+  - **Effects integration**: elite/boss deaths have scaled-up bursts (50/120 particles) and shake (7/22). Boss phase transitions visible via concentric ring count on body.
+  - **Public enemies.js API**: `getCurrentBoss()` for HUD, `getBossWarningSec()` for banner
+  - Verified: 0 syntax errors across 11 modules, 0 console errors in headless preview
+  - **MVP COMPLETE.** PRD §13 acceptance criteria met: 6+ weapons ✓, 8 passives ✓, evolutions ✓, scaling enemies ✓, boss fight at minute 5 with multi-phase ✓, 20-min run loop ✓, full menu→run→death→retry loop ✓, mobile-playable via touch joystick ✓.
 - [ ] Milestone 5 — Meta-progression + main menu + 5 heroes
 - [ ] Milestone 6 — Polish: SFX, music, screen shake, damage numbers, particles
 - [ ] Milestone 7 — Balance pass, playtesting, bug fixes
@@ -45,6 +54,15 @@ Update this at the end of every Claude Code session. Newest entries at the top.
 ---
 
 ## Session log
+
+### 2026-05-18 — Milestone 4 complete (MVP)
+- Added `chests.js`; extended `config.js`, `enemies.js`, `main.js`
+- Elite enemies: existing types boosted via `isElite` tag, drop chest + green gems, pulsing gold glow
+- Boss "Rift Warden" with 3-phase state machine, fan-burst projectile pattern, minion spawn in phase 2
+- Boss-incoming warning banner + dedicated full-width boss HP bar in HUD
+- Chest entity: walk-over pickup grants level-up via existing pendingLevelUps flow
+- **PRD §13 MVP acceptance: every criterion met except the audio one** (10 SFX + 1 music loop — needs assets, M6 territory)
+- **Next session:** Milestone 5 (meta-progression + main menu + heroes) OR more M4 tuning if playtest reveals balance issues
 
 ### 2026-05-18 — Milestone 3 complete
 - Added 3 weapons (Grenade, Beam, Spirit Wolf), 5 passives, 3 enemy types, 6 evolutions, enemy projectiles, HP regen, minion pool, explosion pool, beam pool

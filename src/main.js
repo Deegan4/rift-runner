@@ -7,7 +7,9 @@ import {
   enemyPool, enemyProjectilePool,
   updateEnemies, drawEnemies, drawEnemyProjectiles,
   getElapsedTime, resetElapsedTime,
+  getCurrentBoss, getBossWarningSec,
 } from './enemies.js';
+import { chestPool, updateChests, drawChests, resetChests } from './chests.js';
 import {
   updateWeapons, drawWeapons, resetWeapons, getWeaponCooldown,
   projectilePool, minionPool,
@@ -155,6 +157,7 @@ function startRun() {
   particlePool.active.length = 0;
   for (const n of numberPool.slots) n.alive = false;
   numberPool.active.length = 0;
+  resetChests();
   resetShake();
   state.deathT = 0;
   resetWeapons();
@@ -215,6 +218,14 @@ function update(dt) {
   const gained = updateGems(dt, state.player, pickupRadius);
   if (gained > 0) gainXp(gained);
 
+  // Chests: pickup grants a level-up. We add to pendingLevelUps directly so the existing
+  // level-up flow (open screen on next idle frame) handles it.
+  const chestsCollected = updateChests(dt, state.player);
+  if (chestsCollected > 0) {
+    state.pendingLevelUps += chestsCollected;
+    if (!state.paused) openLevelUpScreen();
+  }
+
   // HP regen (Vitality)
   if (st.regen.flat > 0 && state.player.hp < state.player.maxHp) {
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + st.regen.flat * dt);
@@ -263,6 +274,7 @@ function update(dt) {
   enemyProjectilePool.compact();
   minionPool.compact();
   gemPool.compact();
+  chestPool.compact();
 }
 
 function takeDamage(amount) {
@@ -290,6 +302,7 @@ function render() {
   drawBackground();
 
   drawGems(ctx, renderCamera);
+  drawChests(ctx, renderCamera);
   drawEnemies(ctx, renderCamera);
   drawEnemyProjectiles(ctx, renderCamera);
   drawWeapons(ctx, renderCamera, state.ownedWeapons);
@@ -299,9 +312,51 @@ function render() {
 
   drawVignette();
   drawHud();
+  drawBossHud();
   drawJoystick();
   if (state.pendingCards) drawLevelUpScreen();
   if (state.player.dead) drawGameOver();
+}
+
+function drawBossHud() {
+  // Warning banner before boss spawn
+  const warn = getBossWarningSec();
+  if (warn > 0) {
+    const k = 1 - (warn / CONFIG.boss.warningSec); // 0..1 as warning progresses
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 100);
+    ctx.fillStyle = `rgba(120, 0, 0, ${0.25 + 0.35 * pulse})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.fillStyle = '#ff4444';
+    const size = Math.max(28, Math.min(64, viewW * 0.06));
+    ctx.font = `bold ${size}px ui-sans-serif, system-ui`;
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠ BOSS INCOMING', viewW / 2, viewH * 0.35);
+    ctx.font = '16px ui-monospace, monospace';
+    ctx.fillStyle = '#ffbbbb';
+    ctx.fillText(warn.toFixed(1) + 's', viewW / 2, viewH * 0.35 + 28);
+  }
+
+  // Boss HP bar at top of screen (below the timer)
+  const boss = getCurrentBoss();
+  if (!boss) return;
+  const barW = Math.min(640, viewW * 0.7);
+  const barH = 18;
+  const x = (viewW - barW) / 2;
+  const y = 50;
+  const frac = boss.hp / boss.maxHp;
+  ctx.fillStyle = '#000c';
+  ctx.fillRect(x - 2, y - 2, barW + 4, barH + 4);
+  ctx.fillStyle = '#1a0a0a';
+  ctx.fillRect(x, y, barW, barH);
+  ctx.fillStyle = boss.color;
+  ctx.fillRect(x, y, barW * frac, barH);
+  ctx.strokeStyle = '#fff8';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, barW, barH);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 13px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`RIFT WARDEN — ${Math.ceil(boss.hp)} / ${boss.maxHp}`, x + barW / 2, y + barH - 4);
 }
 
 function drawBackground() {

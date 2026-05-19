@@ -54,6 +54,26 @@ export const CONFIG = {
       projectileSpeed: 280, projectileDamage: 8, projectileRadius: 5,
       projectileColor: '#ffd089', projectileLifetimeSec: 2.5,
     },
+    // Boss "Rift Warden" — single boss type for M4, multi-phase behavior in enemies.js
+    bossWarden: {
+      hp: 1500, moveSpeed: 60, radius: 36, contactDamage: 18,
+      color: '#7a3acb', xpDropChance: 0, gemTier: 'red', ai: 'boss',
+      // Boss-specific: ranged attack params
+      range: 600, fireCooldownSec: 1.5,
+      projectileSpeed: 240, projectileDamage: 14, projectileRadius: 7,
+      projectileColor: '#ff7adc', projectileLifetimeSec: 4.0,
+      // Per-wave HP growth: subsequent boss spawns grow HP by this factor per wave
+      hpScalePerWave: 0.6,
+      // Multi-phase state machine driven off current HP fraction
+      phases: [
+        { upToFrac: 1.00, speedMult: 1.0, fireCdMult: 1.0, burstCount: 3, color: '#7a3acb' },
+        { upToFrac: 0.60, speedMult: 1.3, fireCdMult: 0.7, burstCount: 4, color: '#cc4aa8', minionSpawnSec: 4.0 },
+        { upToFrac: 0.30, speedMult: 1.7, fireCdMult: 0.4, burstCount: 6, color: '#ff3a3a' },
+      ],
+      // Death drop: 8 red gems scatter + 1 chest
+      deathRedGems: 8,
+      deathChests: 1,
+    },
   },
 
   // ---- Spawn weight table (time-based progression) ----
@@ -201,6 +221,34 @@ export const CONFIG = {
     minions: 16,              // spirit wolves
     explosions: 32,           // grenade AoE rings (visual + damage zones)
     beams: 8,                 // beam visual ribbons
+    chests: 16,               // elite/boss drops
+  },
+
+  // ---- Elite enemies ----
+  // Elite = regular enemy with stat multipliers + glow + chest drop.
+  // Spawns on a separate timer; type is picked from the current spawn table weights.
+  elite: {
+    intervalSec: 60,          // spawn an elite every minute (PRD §5.4)
+    hpMult: 4.0,              // 4x base HP
+    damageMult: 1.5,
+    radiusMult: 1.35,
+    speedMult: 0.85,          // a bit slower — gives player chance to engage
+    glowColor: '#ffea7a',
+    dropGreenGems: 3,
+    dropChestChance: 1.0,
+  },
+
+  // ---- Boss settings ----
+  boss: {
+    warningSec: 2.5,          // "BOSS INCOMING" warning before spawn
+  },
+
+  // ---- Chests ----
+  chest: {
+    radius: 14,
+    pulseSpeed: 3,
+    color: '#ffd76b',
+    accentColor: '#fff2c4',
   },
 
   // ---- Visual effects (pure render, no gameplay impact) ----
