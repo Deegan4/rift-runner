@@ -25,7 +25,18 @@ Update this at the end of every Claude Code session. Newest entries at the top.
   - `upgrades.js`: eligible card pool, 3-card random draw, max-owned filter, reroll-aware
   - `main.js`: XP bar (bottom, full-width), level-up screen (3 cards, click or 1/2/3, Q to reroll), weapon icons HUD, ownership state, statTable wired into player moveSpeed/pickupRadius/weaponDamage
   - Decisions logged: card pool uniform-weighted; 1 free reroll per level; conservative starter numbers (Orbit Blade 8dmg/1blade@L1; Shockwave 18dmg/100r/3s; Magnet/PowerCell/Boots 5 levels each)
-- [ ] Milestone 3 — 6 weapons, 8 passives, evolutions, 4 enemy types
+- [x] **Milestone 3 — 6 weapons, 8 passives, evolutions, 4 enemy types** (2026-05-18)
+  - **3 new weapons**: Grenade (lobbed parabolic projectile, AoE on impact), Beam (instant line damage at angle, pierces), Spirit Wolf (persistent minion entity with chase AI + per-enemy hit cooldown)
+  - **All 6 evolutions**: pistol+ReloadKit→Auto-Rifle (3-round burst), orbit+Magnet→Whirlwind (4 blades), shockwave+PowerCell→Nova (chain lightning), grenade+Demolition→Cluster Bomb (5 secondary blasts), beam+FocusLens→Death Ray (longer/wider/stronger), wolf+PackTactics→Wolf Pack (3 baseline wolves)
+  - **5 new passives**: Reload Kit (fire rate), Demolition (AoE radius), Focus Lens (proj speed + pierce), Pack Tactics (minion count), Vitality (+max HP + regen)
+  - **3 new enemy types**: Runner (fast chase), Tank (slow + high HP + dark outline), Shooter (kite AI + ranged projectiles)
+  - **New pools**: `minionPool`, `explosionPool`, `beamPool`, `enemyProjectilePool`
+  - `passives.js`: refactored to support multi-effect passives (Vitality affects 2 stats), 10 stat keys total
+  - `enemies.js`: time-weighted spawn table, per-type AI dispatch (chase vs kite), shooter projectile spawning
+  - `weapons.js`: each weapon family is one update function (`updateOrbitalWeapon`, `updateRadialWeapon`, `updateGrenadeWeapon`, `updateBeamWeapon`, `updateSpiritWolfWeapon`) shared between base and evolved variants
+  - `upgrades.js`: evolution eligibility detection, evolution cards force-included in draw pool, distinct gold styling
+  - `main.js`: HP regen tick (Vitality), max-HP scaling with proportional heal on pickup, enemy-projectile player damage path, evolution badge in HUD
+  - Verified: 0 syntax errors across 9 modules, 0 console errors in headless preview
 - [ ] Milestone 4 — Bosses + elites + scaling (MVP complete)
 - [ ] Milestone 5 — Meta-progression + main menu + 5 heroes
 - [ ] Milestone 6 — Polish: SFX, music, screen shake, damage numbers, particles
@@ -34,6 +45,14 @@ Update this at the end of every Claude Code session. Newest entries at the top.
 ---
 
 ## Session log
+
+### 2026-05-18 — Milestone 3 complete
+- Added 3 weapons (Grenade, Beam, Spirit Wolf), 5 passives, 3 enemy types, 6 evolutions, enemy projectiles, HP regen, minion pool, explosion pool, beam pool
+- `passives.js` refactored to support multi-effect passives (Vitality bumps maxHp AND adds regen)
+- Each weapon family reuses one update function across base + evolved (e.g. `updateOrbitalWeapon` powers both orbit blade and whirlwind)
+- Evolution unlocks force-included in card draw so the player never misses them
+- All 9 modules syntax-clean, 0 console errors in headless preview
+- **Next session:** Milestone 4 — bosses + elites + scaling tuning. MVP complete after M4. Acceptance criteria from PRD §13 mostly already met (6+ weapons ✓, 8 passives ✓, evolutions ✓, scaling enemies ✓), needs boss + multi-phase fight at minute 5.
 
 ### 2026-05-18 — Mobile MVP (cross-cutting, addresses PRD §10 mobile acceptance)
 - Added `input.js`: Pointer Event-based spawn-on-touch joystick in the left half of screen, with tap detection for buttons (cards / reroll / retry)

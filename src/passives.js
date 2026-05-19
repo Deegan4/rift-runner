@@ -1,37 +1,41 @@
-// Passive stat system. Each passive bumps a named stat by a multiplier per level.
-// Effective stat = base * (1 + sum_of_mults). No flat adds in M2 (PRD examples are all percentages).
+// Passive stat system. Each passive declares an array of `effects`, each effect being
+// {stat, mult?, flat?}. Per-level contributions accumulate.
+// Effective value: base * slot.mult + slot.flat.
 
 import { CONFIG } from './config.js';
 
-// Stat names. Keep this list in sync with config.passives[*].stat.
-export const STATS = {
-  pickupRadius: 'pickupRadius',
-  weaponDamage: 'weaponDamage',
-  moveSpeed: 'moveSpeed',
-};
+// Canonical stat keys. Anything in config.passives[*].effects[*].stat must be in this list.
+export const STAT_KEYS = [
+  // Player-affecting
+  'pickupRadius', 'moveSpeed', 'maxHp', 'regen',
+  // Weapon-affecting (all weapons multiply through these)
+  'weaponDamage', 'weaponFireRate', 'weaponArea',
+  'weaponProjectileSpeed', 'weaponPierce',
+  // Minion-affecting
+  'minionCount',
+];
 
 export function freshStatTable() {
-  return {
-    pickupRadius: { mult: 1, flat: 0 },
-    weaponDamage: { mult: 1, flat: 0 },
-    moveSpeed:    { mult: 1, flat: 0 },
-  };
+  const t = {};
+  for (const k of STAT_KEYS) t[k] = { mult: 1, flat: 0 };
+  return t;
 }
 
-// Recompute the entire stat table from current passive levels.
-// Cheap (3 entries × <= 5 levels) and predictable; we call it on level-up only.
 export function deriveStats(ownedPassives) {
   const table = freshStatTable();
   for (const id in ownedPassives) {
     const level = ownedPassives[id];
+    if (level <= 0) continue;
     const def = CONFIG.passives[id];
-    if (!def) continue;
-    const slot = table[def.stat];
-    if (!slot) continue;
-    slot.mult += def.mult * level;
+    if (!def || !def.effects) continue;
+    for (const fx of def.effects) {
+      const slot = table[fx.stat];
+      if (!slot) continue;
+      if (fx.mult) slot.mult += fx.mult * level;
+      if (fx.flat) slot.flat += fx.flat * level;
+    }
   }
   return table;
 }
 
-// Apply a stat to a base value: base * mult + flat.
 export const applyStat = (base, slot) => base * slot.mult + slot.flat;
