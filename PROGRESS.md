@@ -47,7 +47,14 @@ Update this at the end of every Claude Code session. Newest entries at the top.
   - **Public enemies.js API**: `getCurrentBoss()` for HUD, `getBossWarningSec()` for banner
   - Verified: 0 syntax errors across 11 modules, 0 console errors in headless preview
   - **MVP COMPLETE.** PRD §13 acceptance criteria met: 6+ weapons ✓, 8 passives ✓, evolutions ✓, scaling enemies ✓, boss fight at minute 5 with multi-phase ✓, 20-min run loop ✓, full menu→run→death→retry loop ✓, mobile-playable via touch joystick ✓.
-- [ ] Milestone 5 — Meta-progression + main menu + 5 heroes
+- [~] **Milestone 5a — Main menu + stats + codex (partial)** (2026-05-18)
+  - `meta.js`: localStorage-backed persistence layer (`riftRunner.meta.v1` key), `recordRun()` on death, weapon/passive discovery tracking, `resetMeta()` for user-initiated wipe
+  - `menus.js`: canvas-rendered main menu (PLAY / STATS / CODEX), stats screen (8 rows: runs/kills/longest/level/bosses/chests/weapons-discovered/passives-discovered), 3-tab codex (Weapons / Passives / Heroes), confirmation modal for reset
+  - `main.js`: state machine `mode = 'menu' | 'playing' | 'dead'`, tap dispatch by mode, `handleMenuTap` / `handleDeadTap`, game now boots to menu (not auto-startRun), death screen has Retry + Menu buttons
+  - Codex shows all 12 weapons + 8 passives. Locked entries (not yet seen) show "???". Heroes tab shows 5 placeholder heroes (1 unlocked: Ranger) with unlock condition hints — gameplay system deferred
+  - Stats persist across page reloads via localStorage
+- [ ] Milestone 5b — Hero gameplay (5 heroes with stat skews + starting weapons + unlock conditions)
+- [ ] Milestone 5c — Permanent upgrade tree (spend coins on +5% HP, +5% damage, +1 reroll, ~20 nodes)
 - [ ] Milestone 6 — Polish: SFX, music, screen shake, damage numbers, particles
 - [ ] Milestone 7 — Balance pass, playtesting, bug fixes
 

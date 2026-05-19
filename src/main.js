@@ -25,6 +25,11 @@ import {
   initInput, moveVector, setTapHandler,
   joystick, JOYSTICK_RADIUS, KNOB_RADIUS,
 } from './input.js';
+import { recordRun } from './meta.js';
+import {
+  drawMainMenu, drawStats, drawCodex, drawConfirmReset,
+  getCodexTab, setCodexTab, doResetMeta,
+} from './menus.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -60,7 +65,14 @@ const state = {
   paused: false, pendingCards: null, rerollsLeft: 0,
   cardRects: [],
   ownedWeapons: {}, ownedPassives: {}, statTable: null,
-  deathT: 0,        // seconds since death (drives death fade animation)
+  deathT: 0,
+  // M5 menu state machine
+  mode: 'menu',            // 'menu' | 'playing' | 'dead'
+  menuView: 'main',        // 'main' | 'stats' | 'codex' | 'confirmReset'
+  menuRects: [],           // hit rects for current menu view (refreshed each render)
+  bossesKilledThisRun: 0,
+  chestsOpenedThisRun: 0,
+  runRecorded: false,      // ensure recordRun() only fires once per death
 };
 
 const xpToNext = () => Math.floor(CONFIG.xp.baseXpToLevel * Math.pow(CONFIG.xp.curveExponent, state.level - 1));
@@ -160,6 +172,10 @@ function startRun() {
   resetChests();
   resetShake();
   state.deathT = 0;
+  state.bossesKilledThisRun = 0;
+  state.chestsOpenedThisRun = 0;
+  state.runRecorded = false;
+  state.mode = 'playing';
   resetWeapons();
   resetElapsedTime();
 }
@@ -167,7 +183,9 @@ function startRun() {
 // ---- Input wiring ----
 initInput(canvas);
 setTapHandler((x, y) => {
-  if (state.player.dead) { startRun(); return; }
+  if (state.mode === 'menu') { handleMenuTap(x, y); return; }
+  if (state.mode === 'dead') { handleDeadTap(x, y); return; }
+  // playing
   if (!state.pendingCards) return;
   for (let i = 0; i < state.cardRects.length; i++) {
     const r = state.cardRects[i];
@@ -179,10 +197,44 @@ setTapHandler((x, y) => {
   }
 });
 
+function hitTest(rects, x, y) {
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r.id;
+  }
+  return null;
+}
+function handleMenuTap(x, y) {
+  const id = hitTest(state.menuRects, x, y);
+  if (!id) return;
+  if (state.menuView === 'main') {
+    if (id === 'play')  startRun();
+    else if (id === 'stats') state.menuView = 'stats';
+    else if (id === 'codex') state.menuView = 'codex';
+  } else if (state.menuView === 'stats') {
+    if (id === 'back')  state.menuView = 'main';
+    else if (id === 'reset') state.menuView = 'confirmReset';
+  } else if (state.menuView === 'codex') {
+    if (id === 'back') state.menuView = 'main';
+    else if (id.startsWith('tab:')) setCodexTab(id.slice(4));
+  } else if (state.menuView === 'confirmReset') {
+    if (id === 'cancel') state.menuView = 'stats';
+    else if (id === 'confirmReset') { doResetMeta(); state.menuView = 'stats'; }
+  }
+}
+function handleDeadTap(x, y) {
+  const id = hitTest(state.menuRects, x, y);
+  if (id === 'retry') startRun();
+  else if (id === 'menu') { state.mode = 'menu'; state.menuView = 'main'; }
+}
+
 window.addEventListener('keydown', (e) => {
   if (e.key === CONFIG.debug.toggleKey) debugEl.classList.toggle('visible');
-  if (state.player.dead && e.key.toLowerCase() === 'r') startRun();
-  if (state.pendingCards) {
+  if (state.mode === 'dead' && e.key.toLowerCase() === 'r') startRun();
+  if (state.mode === 'dead' && (e.key === 'Escape' || e.key.toLowerCase() === 'm')) {
+    state.mode = 'menu'; state.menuView = 'main';
+  }
+  if (state.mode === 'playing' && state.pendingCards) {
     if (e.key === '1') pickCard(0);
     if (e.key === '2') pickCard(1);
     if (e.key === '3') pickCard(2);
@@ -194,6 +246,7 @@ if (CONFIG.debug.startVisible) debugEl.classList.add('visible');
 
 // ---- Update ----
 function update(dt) {
+  if (state.mode !== 'playing') return;
   if (state.player.dead || state.paused) return;
   const st = state.statTable;
   const moveSpeed = CONFIG.player.moveSpeed * st.moveSpeed.mult;
@@ -223,6 +276,7 @@ function update(dt) {
   const chestsCollected = updateChests(dt, state.player);
   if (chestsCollected > 0) {
     state.pendingLevelUps += chestsCollected;
+    state.chestsOpenedThisRun += chestsCollected;
     if (!state.paused) openLevelUpScreen();
   }
 
@@ -264,8 +318,16 @@ function update(dt) {
 
   // Kill tally (dead-but-not-yet-compacted entries in active)
   let killsThisFrame = 0;
-  for (let i = 0; i < enemyPool.active.length; i++) if (!enemyPool.active[i].alive) killsThisFrame++;
+  let bossKillsThisFrame = 0;
+  for (let i = 0; i < enemyPool.active.length; i++) {
+    const e = enemyPool.active[i];
+    if (!e.alive) {
+      killsThisFrame++;
+      if (e.aiType === 'boss') bossKillsThisFrame++;
+    }
+  }
   state.kills += killsThisFrame;
+  state.bossesKilledThisRun += bossKillsThisFrame;
 
   updateEffects(dt);
 
@@ -284,9 +346,22 @@ function takeDamage(amount) {
   if (state.player.hp <= 0) {
     state.player.hp = 0;
     state.player.dead = true;
+    state.mode = 'dead';
     state.deathT = 0; // for death fade animation
     shakeAdd(20, 0.4);
     spawnBurst(state.player.x, state.player.y, 60, '#ff4444', 100, 380, 0.4, 0.9, 3);
+    if (!state.runRecorded) {
+      state.runRecorded = true;
+      recordRun({
+        kills: state.kills,
+        durationSec: getElapsedTime(),
+        level: state.level,
+        bossesKilled: state.bossesKilledThisRun,
+        chestsOpened: state.chestsOpenedThisRun,
+        ownedWeapons: state.ownedWeapons,
+        ownedPassives: state.ownedPassives,
+      });
+    }
   }
 }
 
@@ -295,6 +370,19 @@ function takeDamage(amount) {
 const renderCamera = { x: 0, y: 0 };
 
 function render() {
+  if (state.mode === 'menu') {
+    if (state.menuView === 'main')         drawMainMenu(ctx, viewW, viewH, state.menuRects);
+    else if (state.menuView === 'stats')   drawStats(ctx, viewW, viewH, state.menuRects);
+    else if (state.menuView === 'codex')   drawCodex(ctx, viewW, viewH, state.menuRects);
+    else if (state.menuView === 'confirmReset') {
+      // Render stats underneath, then the modal overlay on top
+      const dummy = [];
+      drawStats(ctx, viewW, viewH, dummy);
+      drawConfirmReset(ctx, viewW, viewH, state.menuRects);
+    }
+    return;
+  }
+
   const shake = getShakeOffset();
   renderCamera.x = state.camera.x + shake.x;
   renderCamera.y = state.camera.y + shake.y;
@@ -655,9 +743,9 @@ function wrapText(text, cx, cy, maxW, lineH, align = 'center') {
 }
 
 function drawGameOver() {
-  // Phase 1 (0..0.6s): red fade in from center, like blood
-  // Phase 2 (0.6s+): dark overlay + text
+  state.menuRects.length = 0;
   const t = state.deathT;
+  // Phase 1 (0..0.6s): red fade in from center
   if (t < 0.6) {
     const k = t / 0.6;
     const g = ctx.createRadialGradient(viewW / 2, viewH / 2, 0,
@@ -668,25 +756,53 @@ function drawGameOver() {
     ctx.fillRect(0, 0, viewW, viewH);
     return;
   }
-  // Dark base
+  // Phase 2: dark base + text + buttons
   ctx.fillStyle = 'rgba(20, 5, 5, 0.85)';
   ctx.fillRect(0, 0, viewW, viewH);
-  // Title fade-in over second 0.6..1.0
   const textFade = Math.min(1, (t - 0.6) / 0.4);
   ctx.globalAlpha = textFade;
   ctx.fillStyle = '#ff6464';
   const size = Math.max(32, Math.min(64, viewW * 0.07));
   ctx.font = `bold ${size}px ui-sans-serif, system-ui`;
   ctx.textAlign = 'center';
-  ctx.fillText('YOU DIED', viewW / 2, viewH / 2 - 10);
+  ctx.fillText('YOU DIED', viewW / 2, viewH * 0.38);
   ctx.font = '16px ui-sans-serif, system-ui';
   ctx.fillStyle = '#ffffffaa';
   const elapsed = getElapsedTime();
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(Math.floor(elapsed % 60)).padStart(2, '0');
-  ctx.fillText(`Survived ${mm}:${ss}  ·  Lv ${state.level}  ·  ${state.kills} kills`,
-    viewW / 2, viewH / 2 + 24);
-  ctx.fillText('tap or press R to retry', viewW / 2, viewH / 2 + 48);
+  ctx.fillText(`Survived ${mm}:${ss}  ·  Lv ${state.level}  ·  ${state.kills} kills  ·  ${state.bossesKilledThisRun} bosses`,
+    viewW / 2, viewH * 0.38 + 36);
+
+  // Buttons (only after text fade-in)
+  if (textFade < 0.5) { ctx.globalAlpha = 1; return; }
+  const bw = 180, bh = 52, bgap = 16;
+  const totalW = bw * 2 + bgap;
+  const bx = (viewW - totalW) / 2;
+  const by = viewH * 0.55;
+  // Retry
+  ctx.globalAlpha = textFade;
+  ctx.fillStyle = '#2a1f1f';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = '#ffd76b';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bx, by, bw, bh);
+  ctx.fillStyle = '#ffd76b';
+  ctx.font = 'bold 18px ui-sans-serif, system-ui';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('↻ RETRY  (R)', bx + bw / 2, by + bh / 2);
+  state.menuRects.push({ id: 'retry', x: bx, y: by, w: bw, h: bh });
+  // Menu
+  const bx2 = bx + bw + bgap;
+  ctx.fillStyle = '#1a1d27';
+  ctx.fillRect(bx2, by, bw, bh);
+  ctx.strokeStyle = '#5ec8ff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bx2, by, bw, bh);
+  ctx.fillStyle = '#5ec8ff';
+  ctx.fillText('☰ MENU  (M)', bx2 + bw / 2, by + bh / 2);
+  state.menuRects.push({ id: 'menu', x: bx2, y: by, w: bw, h: bh });
+  ctx.textBaseline = 'alphabetic';
   ctx.globalAlpha = 1;
 }
 
@@ -720,14 +836,16 @@ function loop(now) {
     state.frameCount = 0; state.fpsTimer = 0;
   }
   update(dt);
-  // Death timer advances even while update() early-returns on dead — so the fade animates
-  if (state.player.dead) {
+  // Death timer + ambient effects keep ticking after death so fade + particles play out
+  if (state.mode === 'dead') {
     state.deathT += dt;
-    updateEffects(dt); // particles + shake still need to tick post-death
+    updateEffects(dt);
   }
   render();
   updateDebug();
   requestAnimationFrame(loop);
 }
-startRun();
+// Boot into the menu — startRun() is called when the player taps PLAY.
+// Stats need a valid statTable for any rebuildStats() that might run; pre-init harmlessly.
+state.statTable = deriveStats({});
 requestAnimationFrame(loop);
