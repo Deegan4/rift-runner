@@ -35,6 +35,12 @@ Update this at the end of every Claude Code session. Newest entries at the top.
 
 ## Session log
 
+### 2026-05-18 — Mobile MVP (cross-cutting, addresses PRD §10 mobile acceptance)
+- Added `input.js`: Pointer Event-based spawn-on-touch joystick in the left half of screen, with tap detection for buttons (cards / reroll / retry)
+- `main.js`: DPR-aware canvas (retina iPad now crisp), responsive HUD scaling, level-up cards stack vertically on viewports <720px, weapon icons moved to top-right out of joystick zone, tap-to-retry on game over
+- Movement abstraction: `moveVector()` returns joystick-or-keyboard normalized direction; mouse drag inherits via Pointer Events
+- Tested headlessly in Claude Preview: DPR=2 detected, no console errors, joystick state surfaces in debug overlay
+
 ### 2026-05-18 — Milestone 2 complete
 - Added `gems.js`, `passives.js`, `upgrades.js`; extended `config.js`, `weapons.js`, `enemies.js`, `main.js`
 - Full level-up loop works: kill → gem → magnet pickup → XP bar fills → freeze + 3-card screen → pick → resume
