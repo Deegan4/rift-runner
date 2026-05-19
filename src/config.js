@@ -22,8 +22,8 @@ export const CONFIG = {
 
   // ---- XP / leveling ----
   xp: {
-    baseXpToLevel: 100,
-    curveExponent: 1.15,
+    baseXpToLevel: 30,        // tuned: first level-up in ~25s, satisfies PRD §1 "60-second fun"
+    curveExponent: 1.15,      // each level needs 15% more than the previous
     gemValues: { blue: 1, green: 5, red: 25 },
   },
 
