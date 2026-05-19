@@ -69,18 +69,41 @@ export function updateGems(dt, player, pickupRadius) {
 
 export function drawGems(ctx, camera) {
   const list = gemPool.active;
+  const now = performance.now() / 1000;
+  const baseR = CONFIG.gems.radius;
   for (let i = 0; i < list.length; i++) {
     const g = list[i];
     if (!g.alive) continue;
     const sx = g.x - camera.x;
     const sy = g.y - camera.y;
-    // Diamond shape — cheap, readable
+    // Position-based phase so each gem pulses independently, no stored state.
+    const phase = Math.sin(now * 4 + g.x * 0.1 + g.y * 0.1);
+    const r = baseR * (1 + 0.18 * phase);
+
+    // Glow halo
+    ctx.globalAlpha = 0.25 + 0.15 * (1 + phase) / 2;
     ctx.fillStyle = g.color;
     ctx.beginPath();
-    ctx.moveTo(sx, sy - CONFIG.gems.radius);
-    ctx.lineTo(sx + CONFIG.gems.radius, sy);
-    ctx.lineTo(sx, sy + CONFIG.gems.radius);
-    ctx.lineTo(sx - CONFIG.gems.radius, sy);
+    ctx.arc(sx, sy, r * 2.2, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Diamond body
+    ctx.fillStyle = g.color;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - r);
+    ctx.lineTo(sx + r, sy);
+    ctx.lineTo(sx, sy + r);
+    ctx.lineTo(sx - r, sy);
+    ctx.closePath();
+    ctx.fill();
+
+    // Inner highlight — top-left triangle slice for "facet" feel
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - r * 0.85);
+    ctx.lineTo(sx + r * 0.35, sy - r * 0.15);
+    ctx.lineTo(sx - r * 0.35, sy - r * 0.15);
     ctx.closePath();
     ctx.fill();
   }

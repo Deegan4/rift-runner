@@ -2,7 +2,7 @@
 // Milestone 3: 6 weapons + 8 passives + evolutions + 4 enemy types + enemy projectiles + HP regen.
 
 import { CONFIG } from './config.js';
-import { TAU, clamp, dist2 } from './utils.js';
+import { TAU, clamp, dist2, drawSphere } from './utils.js';
 import {
   enemyPool, enemyProjectilePool,
   updateEnemies, drawEnemies, drawEnemyProjectiles,
@@ -267,17 +267,48 @@ function render() {
   drawEnemyProjectiles(ctx, state.camera);
   drawWeapons(ctx, state.camera, state.ownedWeapons);
 
-  const px = state.player.x - state.camera.x;
-  const py = state.player.y - state.camera.y;
-  ctx.fillStyle = state.player.iframes > 0 ? '#ffffff' : '#4ec9ff';
-  ctx.beginPath();
-  ctx.arc(px, py, state.player.radius, 0, TAU);
-  ctx.fill();
-
+  drawPlayer();
   drawHud();
   drawJoystick();
   if (state.pendingCards) drawLevelUpScreen();
   if (state.player.dead) drawGameOver();
+}
+
+function drawPlayer() {
+  const px = state.player.x - state.camera.x;
+  const py = state.player.y - state.camera.y;
+  const r = state.player.radius;
+
+  // I-frame flicker: skip drawing on alternating short windows for a strobe effect
+  if (state.player.iframes > 0) {
+    const phase = Math.floor(state.player.iframes * 14) % 2;
+    if (phase === 0) {
+      drawSphere(ctx, px, py, r, '#ffffff', 'rgba(255,255,255,0.0)', null);
+    } else {
+      drawSphere(ctx, px, py, r, '#4ec9ff');
+    }
+  } else {
+    drawSphere(ctx, px, py, r, '#4ec9ff');
+  }
+
+  // Direction arrow when moving — read at-a-glance
+  const v = moveVector();
+  if (v.dx !== 0 || v.dy !== 0) {
+    const ang = Math.atan2(v.dy, v.dx);
+    const tipX = px + Math.cos(ang) * (r + 6);
+    const tipY = py + Math.sin(ang) * (r + 6);
+    const baseX = px + Math.cos(ang) * (r + 1);
+    const baseY = py + Math.sin(ang) * (r + 1);
+    const perpX = -Math.sin(ang) * 3;
+    const perpY = Math.cos(ang) * 3;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(baseX + perpX, baseY + perpY);
+    ctx.lineTo(baseX - perpX, baseY - perpY);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
 function drawHud() {

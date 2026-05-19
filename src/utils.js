@@ -109,3 +109,44 @@ export class SpatialHash {
 
 // Singleton hashes — one per entity class so queries don't return mixed types.
 export const enemyHash = new SpatialHash(CONFIG.render.spatialHashCellSize);
+
+// ---- Drawing helpers ----
+// Sphere look: base disk + smaller lighter disk offset top-left (highlight) + outline.
+// Two fills + one stroke — ~10x cheaper than createRadialGradient per call.
+// `lightColor` defaults to a translucent white highlight that works on any base.
+export function drawSphere(ctx, x, y, r, baseColor, lightColor = 'rgba(255,255,255,0.45)', outlineColor = 'rgba(0,0,0,0.35)') {
+  ctx.fillStyle = baseColor;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = lightColor;
+  ctx.beginPath();
+  ctx.arc(x - r * 0.32, y - r * 0.32, r * 0.5, 0, TAU);
+  ctx.fill();
+  if (outlineColor) {
+    ctx.strokeStyle = outlineColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, TAU);
+    ctx.stroke();
+  }
+}
+
+// Glowing dot: bright white core inside a translucent colored halo.
+// Used for projectiles, gems, anywhere "energy" should read.
+export function drawGlowDot(ctx, x, y, coreRadius, color, haloMult = 2.2) {
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, coreRadius * haloMult, 0, TAU);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, coreRadius, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(x, y, coreRadius * 0.45, 0, TAU);
+  ctx.fill();
+}

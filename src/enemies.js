@@ -1,7 +1,7 @@
 // Enemy spawning, AI, lifecycle, and shooter projectiles.
 
 import { CONFIG } from './config.js';
-import { Pool, enemyHash, TAU, dist2 } from './utils.js';
+import { Pool, enemyHash, TAU, dist2, drawSphere, drawGlowDot } from './utils.js';
 import { spawnGem } from './gems.js';
 
 // ---- Pools ----
@@ -214,20 +214,71 @@ export function damageEnemy(e, dmg) {
 // ---- Rendering ----
 export function drawEnemies(ctx, camera) {
   const list = enemyPool.active;
+  const now = performance.now() / 1000;
   for (let i = 0; i < list.length; i++) {
     const e = list[i];
     if (!e.alive) continue;
     const sx = e.x - camera.x;
     const sy = e.y - camera.y;
-    ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : e.color;
-    ctx.beginPath();
-    ctx.arc(sx, sy, e.radius, 0, TAU);
-    ctx.fill();
-    // Tank gets a darker outline so it reads as "tough"
-    if (e.type === 'tank') {
-      ctx.strokeStyle = '#2a1f4a';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+
+    if (e.hitFlash > 0) {
+      // White flash on hit (PRD §11 "white flash on enemy when hit")
+      drawSphere(ctx, sx, sy, e.radius, '#ffffff', 'rgba(255,255,255,0.0)', null);
+    } else {
+      drawSphere(ctx, sx, sy, e.radius, e.color);
+    }
+
+    // Per-type silhouette overlays
+    switch (e.type) {
+      case 'zombie': {
+        // Two dark eye dots — instantly readable as a face
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath(); ctx.arc(sx - e.radius * 0.32, sy - e.radius * 0.18, 1.6, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx + e.radius * 0.32, sy - e.radius * 0.18, 1.6, 0, TAU); ctx.fill();
+        break;
+      }
+      case 'runner': {
+        // Spinning ring around the body — communicates "fast"
+        const a = now * 8;
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(sx, sy, e.radius + 3, a, a + Math.PI * 1.1);
+        ctx.stroke();
+        break;
+      }
+      case 'tank': {
+        // Thick dark armor ring + four rivets at cardinal points
+        ctx.strokeStyle = '#1a0f3a';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(sx, sy, e.radius - 1, 0, TAU);
+        ctx.stroke();
+        ctx.fillStyle = '#3a2a6a';
+        const r = e.radius - 2;
+        for (let k = 0; k < 4; k++) {
+          const ang = k * Math.PI / 2;
+          ctx.beginPath();
+          ctx.arc(sx + Math.cos(ang) * r, sy + Math.sin(ang) * r, 1.4, 0, TAU);
+          ctx.fill();
+        }
+        break;
+      }
+      case 'shooter': {
+        // Pulsing glow halo — communicates "dangerous from range"
+        const pulse = 0.5 + 0.5 * Math.sin(now * 4 + e.x * 0.01);
+        ctx.globalAlpha = 0.3 + 0.3 * pulse;
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.arc(sx, sy, e.radius + 4 + pulse * 3, 0, TAU);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // Small dark cross in center for "weapon" hint
+        ctx.fillStyle = '#3a3a1a';
+        ctx.fillRect(sx - 3, sy - 1, 6, 2);
+        ctx.fillRect(sx - 1, sy - 3, 2, 6);
+        break;
+      }
     }
   }
 }
@@ -237,10 +288,7 @@ export function drawEnemyProjectiles(ctx, camera) {
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
     if (!p.alive) continue;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x - camera.x, p.y - camera.y, p.radius, 0, TAU);
-    ctx.fill();
+    drawGlowDot(ctx, p.x - camera.x, p.y - camera.y, p.radius, p.color, 2.0);
   }
 }
 

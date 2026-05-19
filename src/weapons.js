@@ -3,7 +3,7 @@
 // Evolved weapons reuse base-weapon update functions configured via CONFIG.weapons[id].
 
 import { CONFIG } from './config.js';
-import { Pool, enemyHash, dist2, TAU } from './utils.js';
+import { Pool, enemyHash, dist2, TAU, drawSphere, drawGlowDot } from './utils.js';
 import { damageEnemy } from './enemies.js';
 
 // ---- Level-scaled stat helper. value = base[key] + perLevel[key] * (level - 1). ----
@@ -553,7 +553,7 @@ export function updateWeapons(dt, player, ownedWeapons, st) {
 // ============================================================================
 
 export function drawWeapons(ctx, camera, ownedWeapons) {
-  // Projectiles (regular + grenades with parabolic arc)
+  // Projectiles (regular = glow dot; grenades = sphere with parabolic arc + faint shadow)
   const plist = projectilePool.active;
   for (let i = 0; i < plist.length; i++) {
     const p = plist[i];
@@ -561,15 +561,20 @@ export function drawWeapons(ctx, camera, ownedWeapons) {
     let sx = p.x - camera.x;
     let sy = p.y - camera.y;
     if (p.isGrenade) {
-      // Parabolic Y offset: peak at midpoint of flight
       const tNorm = 1 - (p.life / p.totalLife);
       const arc = Math.sin(tNorm * Math.PI) * p.arcHeight;
-      sy -= arc;
+      // Shadow on ground (where it will land)
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(sx, sy, p.radius * 0.9, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      // Grenade body lifted by arc
+      drawSphere(ctx, sx, sy - arc, p.radius, p.color);
+    } else {
+      drawGlowDot(ctx, sx, sy, p.radius, p.color);
     }
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(sx, sy, p.radius, 0, TAU);
-    ctx.fill();
   }
 
   // Explosions (expanding alpha ring + filled disk)
@@ -594,20 +599,32 @@ export function drawWeapons(ctx, camera, ownedWeapons) {
     ctx.globalAlpha = 1;
   }
 
-  // Beams (rectangular ribbon)
+  // Beams: thick translucent body + bright thin core line (lasery look)
   const blist = beamPool.active;
   for (let i = 0; i < blist.length; i++) {
     const b = blist[i];
     if (!b.alive) continue;
     const k = b.t / b.dur;
-    ctx.globalAlpha = 1 - k;
+    const fade = 1 - k;
+    const x0 = b.x0 - camera.x, y0 = b.y0 - camera.y;
+    const x1 = b.x1 - camera.x, y1 = b.y1 - camera.y;
+    ctx.lineCap = 'round';
+    // Outer halo
+    ctx.globalAlpha = fade * 0.4;
     ctx.strokeStyle = b.color;
-    ctx.lineWidth = b.halfWidth * 2;
-    ctx.beginPath();
-    ctx.moveTo(b.x0 - camera.x, b.y0 - camera.y);
-    ctx.lineTo(b.x1 - camera.x, b.y1 - camera.y);
-    ctx.stroke();
+    ctx.lineWidth = b.halfWidth * 2.4;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    // Body
+    ctx.globalAlpha = fade * 0.9;
+    ctx.lineWidth = b.halfWidth * 1.4;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    // Bright core
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(2, b.halfWidth * 0.4);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
   }
 
   // Orbit blades & Whirlwind
@@ -618,31 +635,39 @@ export function drawWeapons(ctx, camera, ownedWeapons) {
   drawPulses(ctx, camera, weaponState.shockwave.pulses);
   drawPulses(ctx, camera, weaponState.nova.pulses);
 
-  // Minions (Spirit Wolf / Wolf Pack)
+  // Minions (Spirit Wolf / Wolf Pack): sphere + small ears + eyes
   const mlist = minionPool.active;
   for (let i = 0; i < mlist.length; i++) {
     const m = mlist[i];
     if (!m.alive) continue;
+    const sx = m.x - camera.x;
+    const sy = m.y - camera.y;
+    drawSphere(ctx, sx, sy, m.radius, m.color);
+    // Ear triangles
     ctx.fillStyle = m.color;
     ctx.beginPath();
-    ctx.arc(m.x - camera.x, m.y - camera.y, m.radius, 0, TAU);
-    ctx.fill();
-    // Eye dots so wolves are visually distinct
+    ctx.moveTo(sx - m.radius * 0.7, sy - m.radius * 0.4);
+    ctx.lineTo(sx - m.radius * 0.3, sy - m.radius * 1.0);
+    ctx.lineTo(sx - m.radius * 0.1, sy - m.radius * 0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(sx + m.radius * 0.7, sy - m.radius * 0.4);
+    ctx.lineTo(sx + m.radius * 0.3, sy - m.radius * 1.0);
+    ctx.lineTo(sx + m.radius * 0.1, sy - m.radius * 0.5);
+    ctx.closePath(); ctx.fill();
+    // Eyes
     ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath(); ctx.arc(m.x - camera.x - 3, m.y - camera.y - 2, 1.5, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(m.x - camera.x + 3, m.y - camera.y - 2, 1.5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx - 3, sy - 2, 1.6, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + 3, sy - 2, 1.6, 0, TAU); ctx.fill();
   }
 }
 
 function drawOrbiters(ctx, camera, weaponId, ownedLevel, stateRef) {
   if (!ownedLevel || ownedLevel <= 0) return;
   const def = CONFIG.weapons[weaponId].base;
-  ctx.fillStyle = def.color;
   for (let i = 0; i < stateRef.blades.length; i++) {
     const b = stateRef.blades[i];
-    ctx.beginPath();
-    ctx.arc(b.x - camera.x, b.y - camera.y, def.bladeRadius, 0, TAU);
-    ctx.fill();
+    drawSphere(ctx, b.x - camera.x, b.y - camera.y, def.bladeRadius, def.color);
   }
 }
 
